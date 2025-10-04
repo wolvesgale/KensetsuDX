@@ -2,7 +2,7 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok:false, error:'Method not allowed' });
 
-  const GAS_URL = 'https://script.google.com/macros/s/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/exec'; // ← あなたの GAS /exec
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbxLfhnrt9N2kV7UW4RGFuRhg3jzTCngBStcK7RA9XJis1gm78For6sirNhijiSxwlhG5Q/exec'; // ← あなたの GAS /exec
 
   try{
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
