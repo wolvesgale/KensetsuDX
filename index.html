@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>出退勤（LIFF）</title>
+<script src="https://static.line-scdn.net/liff/edge/versions/2.22.4/sdk.js"></script>
+<style>
+  body{font-family:system-ui,sans-serif;margin:16px}
+  #card{border:1px solid #eee;border-radius:12px;padding:16px}
+  button{padding:10px 14px;border:none;border-radius:10px;margin:6px 6px 0 0;cursor:pointer}
+  .primary{background:#111;color:#fff}
+  .warn{background:#f0ad4e;color:#111}
+  .danger{background:#d9534f;color:#fff}
+  .muted{opacity:.6}
+  #msg{margin-top:10px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h2>出退勤</h2>
+
+<div id="card">
+  <div id="who" class="muted">ログイン確認中…</div>
+  <div id="state" style="margin:8px 0">状態: <b>-</b></div>
+
+  <div id="btns">
+    <button id="btn-in" class="primary">出勤</button>
+    <button id="btn-brk" class="warn">休憩開始</button>
+    <button id="btn-brkend" class="">休憩終了</button>
+    <button id="btn-out" class="danger">退勤</button>
+  </div>
+
+  <div id="msg"></div>
+</div>
+
+<script>
+  // ==== 環境値（差し替え） ====
+  const LIFF_ID  = '2008230823-ZwNqedOQ';      // ← あなたの LIFF ID
+  const API_URL  = '/api/punch';               // ← Vercel プロキシ（下の api/punch.js）
+
+  // ==== 便利関数 ====
+  const $ = sel => document.querySelector(sel);
+  const setState = s => $('#state').innerHTML = '状態: <b>'+s+'</b>';
+  const say = (t) => $('#msg').textContent = String(t || '');
+  const enable = (id, on) => { const el=$(id); if(!el) return; el.disabled=!on; el.classList.toggle('muted',!on); };
+
+  // API 呼び出し
+  async function call(action, idToken){
+    say('送信中…');
+    const r = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action, idToken })
+    });
+    const data = await r.json();
+    say(data.message || '');
+    if(data.status) setState(data.status);
+    return data;
+  }
+
+  // ボタンの有効/無効（状態に応じて切替）
+  function applyButtons(status){
+    // 初期: すべて無効
+    ['#btn-in','#btn-brk','#btn-brkend','#btn-out'].forEach(id=>enable(id,false));
+    if(status==='IDLE'){            // 未出勤
+      enable('#btn-in', true);
+    }else if(status==='WORKING'){   // 勤務中
+      enable('#btn-brk', true);
+      enable('#btn-out', true);
+    }else if(status==='BREAKING'){  // 休憩中
+      enable('#btn-brkend', true);
+      enable('#btn-out', true);
+    }
+  }
+
+  (async () => {
+    try{
+      await liff.init({ liffId: LIFF_ID });
+
+      if(!liff.isLoggedIn()){
+        // LIFF 自身へ戻す（PCブラウザでもOK）
+        return liff.login({ redirectUri: `https://liff.line.me/${LIFF_ID}` });
+      }
+
+      const prof = await liff.getProfile();
+      $('#who').textContent = `ようこそ、${prof.displayName} さん`;
+
+      const idToken = liff.getIDToken();
+
+      // 初期状態（noop）
+      const init = await call('noop', idToken);
+      setState(init.status || 'IDLE');
+      applyButtons(init.status || 'IDLE');
+
+      // ハンドラ
+      $('#btn-in').onclick      = async ()=>{ const r=await call('clock_in', idToken);    applyButtons(r.status); };
+      $('#btn-brk').onclick     = async ()=>{ const r=await call('break_start', idToken); applyButtons(r.status); };
+      $('#btn-brkend').onclick  = async ()=>{ const r=await call('break_end', idToken);   applyButtons(r.status); };
+      $('#btn-out').onclick     = async ()=>{ const r=await call('clock_out', idToken);   applyButtons(r.status); };
+
+    }catch(e){
+      say('初期化エラー: ' + (e && e.message || e));
+      console.error(e);
+    }
+  })();
+</script>
+</body>
+</html>
